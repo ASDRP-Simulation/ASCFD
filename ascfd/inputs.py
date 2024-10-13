@@ -1,7 +1,7 @@
 import configparser
 import numpy as np
 import os
-
+import ast
 
 class CaseInsensitiveConfigParser(configparser.ConfigParser):
     def __init__(self, *args, **kwargs):
@@ -21,13 +21,13 @@ class Inputs:
 
         # Mesh
         self.nx = self.get_config_value(config, "Mesh", "nx", type_func=int)
+        self.ny = self.get_config_value(config, "Mesh", "ny", type_func=int)
         self.numghosts = self.get_config_value(
             config, "Mesh", "numghosts", type_func=int
         )
-        self.x_lo = self.get_config_value(config, "Mesh", "x_lo", type_func=float)
-        self.x_hi = self.get_config_value(config, "Mesh", "x_hi", type_func=float)
+        self.xlim = self.get_config_value(config, "Mesh", "xlim", type_func=self.parse_bounds)
+        self.ylim = self.get_config_value(config, "Mesh", "ylim", type_func=self.parse_bounds)
 
-        self.xlim = (self.x_lo, self.x_hi)
 
         # Time
         self.nt = self.get_config_value(
@@ -61,8 +61,8 @@ class Inputs:
 
         # Method
         self.flux = self.get_config_value(config, "Method", "flux")
-        self.bc_lo = self.get_config_value(config, "Method", "bcs_lo")
-        self.bc_hi = self.get_config_value(config, "Method", "bcs_hi")
+        self.bcs_lo = self.get_config_value(config, "Method", "bcs_lo", type_func=self.parse_bcs)
+        self.bcs_hi = self.get_config_value(config, "Method", "bcs_hi", type_func=self.parse_bcs)
 
         # Output
         self.output_freq = self.get_config_value(
@@ -104,3 +104,24 @@ class Inputs:
             raise ValueError(
                 f"Type conversion error for '{option}' in section '{section}': {e}"
             ) from e
+        
+    def parse_bounds(self, bounds_str):
+        try:
+            bounds = ast.literal_eval(bounds_str)
+            if not isinstance(bounds, tuple) or len(bounds) != 2:
+                raise ValueError("Bounds must be a tuple of two numbers")
+            return (float(bounds[0]), float(bounds[1]))
+        except (ValueError, SyntaxError) as e:
+            raise ValueError(f"Invalid bounds format. Expected (min, max), got {bounds_str}") from e
+
+    def parse_bcs(self, bcs_str):
+        try:
+            # Remove parentheses and split by comma
+            bcs = bcs_str.strip('()').split(',')
+            if len(bcs) != 2:
+                raise ValueError("Boundary conditions must be a tuple of two strings")
+            # Strip whitespace from each boundary condition
+            return tuple(bc.strip().lower() for bc in bcs)
+        except Exception as e:
+            raise ValueError(f"Invalid boundary conditions format. Expected (bc_x, bc_y), got {bcs_str}") from e
+

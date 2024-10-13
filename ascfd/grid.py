@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from onedim.constants import Constants
+from ascfd.constants import Constants
 
 
 class Grid1D:
@@ -104,7 +104,7 @@ class Grid2D:
         self.Nx = Nx
         self.Ny = Ny
         self.Nghost = Nghost
-        self.num_vars = num_vars  # Number of variables (e.g., 3 for Euler equations)
+        self.num_vars = num_vars  
         self.dx = (xlim[1] - xlim[0]) / (Nx - 1)
         self.dy = (ylim[1] - ylim[0]) / (Ny - 1)
         self.x = np.linspace(

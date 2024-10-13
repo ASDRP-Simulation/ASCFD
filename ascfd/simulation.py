@@ -1,19 +1,18 @@
-from onedim.grid import Grid1D
-from onedim.constants import Constants
-import onedim.ics as ics
+from ascfd.grid import Grid1D
+from ascfd.constants import Constants
+import ascfd.ics as ics
 import glob
 import matplotlib.animation as animation
 import matplotlib.ticker as ticker
 import copy
 
 import sys
-from onedim.flux import Flux
+from ascfd.flux import Flux
 
 
-from onedim.euler import Euler
+from ascfd.euler import Euler
 
-from onedim.reconstruct import weno5_reconstruction
-from onedim.bcs import BoundaryConditions
+from ascfd.bcs import BoundaryConditions
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -43,8 +42,6 @@ class Simulation:
             self.output()
 
     def run(self):
-        # os.makedirs('simulation_frames', exist_ok=True)
-
 
         while (self.t < self.inp.t_finish) and self.timestepNum < self.inp.nt:
             print("Timestep: ", self.timestepNum, "  Current time: ", self.t)
@@ -73,7 +70,7 @@ class Simulation:
             max_speed = np.max(np.abs(self.grid.grid[self.c.UCOMP]) + a)
             dt = min(self.inp.cfl * self.grid.dx / max_speed, self.inp.t_finish - self.t)
             
-            U_new = np.zeros_like(self.grid.grid) #/ 0  # np.nans_like lol
+            U_new = np.zeros_like(self.grid.grid) 
             
             
             if  self.inp.timeStepper == "RK1":
@@ -85,76 +82,6 @@ class Simulation:
                         U_new[icomp, i] = consP[icomp, i] - (dt / self.grid.dx) * (
                             numericalFluxP[icomp, i] - numericalFluxM[icomp, i]
                         )
-
-
-            elif self.inp.timeStepper == "RK4":
-
-                rhs = np.zeros_like(self.grid.grid) #/ 0  # np.nans_like lol
-                self.grid.check_grid(self.c,prim=True)
-
-                u_start = self.euler.prim_to_cons(self.grid.grid)
-
-
-                consP, numericalFluxP, numericalFluxM = self.flux.getFlux(self.grid)
-                for i in range(self.grid.Nghost, self.grid.Nx + self.grid.Nghost):
-                    for icomp in range(self.c.NUMQ):
-                        rhs[icomp, i] =  (1 / self.grid.dx) * (
-                            numericalFluxP[icomp, i] - numericalFluxM[icomp, i]
-                        )
-
-                k1 = dt*rhs
-                self.grid.grid = u_start - k1 / 2
-
-                self.bcs.apply_bcs()
-                self.grid.check_grid(self.c,cons=True)
-
-
-                self.grid.grid = self.euler.cons_to_prim(u_start - k1 / 2)
-                self.bcs.apply_bcs()
-                self.grid.check_grid(self.c,prim=True)
-
-
-                consP, numericalFluxP, numericalFluxM = self.flux.getFlux(self.grid)
-                for i in range(self.grid.Nghost, self.grid.Nx + self.grid.Nghost):
-                    for icomp in range(self.c.NUMQ):
-                        rhs[icomp, i] =  (1 / self.grid.dx) * (
-                            numericalFluxP[icomp, i] - numericalFluxM[icomp, i]
-                        )
-                
-                k2 = dt * rhs
-                self.grid.grid = self.euler.cons_to_prim(u_start - k2 / 2)
-                self.bcs.apply_bcs()
-                self.grid.check_grid(self.c,prim=True)
-
-
-                consP, numericalFluxP, numericalFluxM = self.flux.getFlux(self.grid)
-                for i in range(self.grid.Nghost, self.grid.Nx + self.grid.Nghost):
-                    for icomp in range(self.c.NUMQ):
-                        rhs[icomp, i] =  (1 / self.grid.dx) * (
-                            numericalFluxP[icomp, i] - numericalFluxM[icomp, i]
-                        )
-
-                k3 = dt*rhs
-                self.grid.grid = self.euler.cons_to_prim(u_start - k3)
-                self.bcs.apply_bcs()
-                #self.grid.check_grid(self.c)
-
-
-
-
-
-                consP, numericalFluxP, numericalFluxM = self.flux.getFlux(self.grid)
-                for i in range(self.grid.Nghost, self.grid.Nx + self.grid.Nghost):
-                    for icomp in range(self.c.NUMQ):
-                        rhs[icomp, i] =  (1 / self.grid.dx) * (
-                            numericalFluxP[icomp, i] - numericalFluxM[icomp, i]
-                        )
-                k4 = dt*rhs
-                U_new = u_start - ((1/6)*k1  + (1/3)*k2 + (1/3)*k3 + (1/6)*k4)
-                self.bcs.apply_bcs()
-                self.grid.check_grid(self.c)
-
-
             else:
                 raise RuntimeError("Timestepping method not supported.")
 

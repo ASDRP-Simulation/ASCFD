@@ -1,0 +1,52 @@
+from ascfd.constants import *
+import numpy as np
+
+
+
+def diagonal_advection_2d(a_x, a_y, a_var, t=0):
+    """
+    Diagonal advection test case for 2D Euler equations.
+    """
+    if a_var == RHOCOMP:
+        return 1.0 + 0.2 * np.sin(np.pi * (a_x + a_y - t))
+    elif a_var == UCOMP:
+        return np.ones_like(a_x)
+    elif a_var == VCOMP:
+        return np.ones_like(a_x)
+    elif a_var == PCOMP:
+        return np.ones_like(a_x)
+    else:
+        raise ValueError(f"Unexpected variable: {a_var}")
+
+def kelvin_helmholtz_2d(a_x, a_y, a_var):
+    """
+    Kelvin-Helmholtz instability test case for 2D Euler equations.
+    """
+    if a_var == RHOCOMP:
+        return np.ones_like(a_x)
+    elif a_var == UCOMP:
+        return 0.5 * (np.tanh(20 * a_y) - 1)
+    elif a_var == VCOMP:
+        return 0.1 * np.sin(2 * np.pi * a_x)
+    elif a_var == PCOMP:
+        return 2.5 * np.ones_like(a_x)
+    else:
+        raise ValueError(f"Unexpected variable: {a_var}")
+
+def double_mach_reflection_2d(a_x, a_y, a_var):
+    """
+    Double Mach reflection test case for 2D Euler equations.
+    """
+    x0 = 1/6
+    mask = a_x < x0 + a_y / np.sqrt(3)
+    
+    if a_var == RHOCOMP:
+        return np.where(mask, 8.0, 1.4)
+    elif a_var == UCOMP:
+        return np.where(mask, 8.25 * np.cos(np.pi/6), 0.0)
+    elif a_var == VCOMP:
+        return np.where(mask, -8.25 * np.sin(np.pi/6), 0.0)
+    elif a_var == PCOMP:
+        return np.where(mask, 116.5, 1.0)
+    else:
+        raise ValueError(f"Unexpected variable: {a_var}")

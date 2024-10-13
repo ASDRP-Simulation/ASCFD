@@ -1,5 +1,5 @@
 
-from onedim.grid import Grid1D
+from ascfd.grid import Grid1D
 from typing import Callable
 
 class BoundaryConditions:
