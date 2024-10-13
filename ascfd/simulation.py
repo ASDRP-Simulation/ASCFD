@@ -1,4 +1,4 @@
-from ascfd.grid import Grid1D
+from ascfd.grid import Grid2D
 from ascfd.constants import Constants
 import ascfd.ics as ics
 import glob
@@ -24,8 +24,8 @@ class Simulation:
         self.c = Constants(a_inputs)
         self.euler = Euler(self.c)
 
-        self.grid = Grid1D(self.inp.xlim, self.inp.nx, self.inp.numghosts, self.c.NUMQ)
-        self.bcs = BoundaryConditions(self.grid, self.inp.bc_lo, self.inp.bc_hi)
+        self.grid = Grid2D(self.inp.xlim, self.inp.ylim, self.inp.nx, self.inp.ny, self.inp.numghosts, self.c.NUMQ)
+        self.bcs = BoundaryConditions(self.grid, self.inp.bcs_lo, self.inp.bcs_hi)
         self.flux = Flux(self.c, self.inp.flux)
 
         self.applyICS()
@@ -50,38 +50,33 @@ class Simulation:
 
 
             self.grid.assert_variable_type("prim")
-
             
             #get density 
-            if self.inp.system == "euler1D":
+            if self.inp.system == "euler2D":
                 density = self.grid.grid[self.c.RHOCOMP]
             
-            elif self.inp.system == "euler1DNS2" or self.inp.system == "4HRM":
-                density = np.zeros_like(self.grid.grid[0])
-                
-                #rho = rhoY1 + rhoY2
-                for i in range(self.c.NS):
-                    density += self.grid.grid[i]
             else:
                 raise RuntimeError("Density method needs to be implemented.")
 
 
             a = np.sqrt(self.c.gamma * self.grid.grid[self.c.PCOMP] / density)
-            max_speed = np.max(np.abs(self.grid.grid[self.c.UCOMP]) + a)
-            dt = min(self.inp.cfl * self.grid.dx / max_speed, self.inp.t_finish - self.t)
+            max_speed = np.max(np.abs(self.grid.grid[self.c.UCOMP]) + np.abs(self.grid.grid[self.c.VCOMP]) + a)
+            dt = min(self.inp.cfl * min(self.grid.dx, self.grid.dy) / max_speed, self.inp.t_finish - self.t)
             
             U_new = np.zeros_like(self.grid.grid) 
             
             
             if  self.inp.timeStepper == "RK1":
                 #returns numerical flux and conservative varaibles at interface
-                consP, numericalFluxP, numericalFluxM = self.flux.getFlux(self.grid)
+                consU, numFluxX_plus, numFluxX_minus, numFluxY_plus, numFluxY_minus = self.flux.getFlux(self.grid)
 
                 for i in range(self.grid.Nghost, self.grid.Nx + self.grid.Nghost):
-                    for icomp in range(self.c.NUMQ):
-                        U_new[icomp, i] = consP[icomp, i] - (dt / self.grid.dx) * (
-                            numericalFluxP[icomp, i] - numericalFluxM[icomp, i]
-                        )
+                    for j in range(self.grid.Nghost, self.grid.Ny + self.grid.Nghost):
+                        for icomp in range(self.c.NUMQ):
+                            U_new[icomp, i, j] = consU[icomp, i, j] - (
+                                (dt / self.grid.dx) * (numFluxX_plus[icomp, i, j] - numFluxX_minus[icomp, i, j]) +
+                                (dt / self.grid.dy) * (numFluxY_plus[icomp, i, j] - numFluxY_minus[icomp, i, j])
+                            )
             else:
                 raise RuntimeError("Timestepping method not supported.")
 
@@ -134,19 +129,16 @@ class Simulation:
 
     def applyICS(self):
 
-        if self.inp.system == "euler1D":
-            if self.inp.ics == "sodshocktube":
-                self.grid.fill_grid(ics.sod_shock_tube)
-            elif self.inp.ics == "shuoshershocktube":
-                self.grid.fill_grid(ics.shu_osher_shock_tube)
-            elif self.inp.ics == "lax_problem":
-                self.grid.fill_grid(ics.lax_problem)
+        if self.inp.system == "euler2D":
+            if self.inp.ics == "diagonal_advection":
+                self.grid.fill_grid(ics.diagonal_advection_2d)
+            elif self.inp.ics == "kelvin_helmholtz":
+                self.grid.fill_grid(ics.kelvin_helmholtz_2d)
+            elif self.inp.ics == "double_mach_reflection":
+                self.grid.fill_grid(ics.double_mach_reflection_2d)
             else:
                 raise RuntimeError("[FLUID] ICS not valid.")
             
-        elif self.inp.system  == "euler1DNS2":
-            if self.inp.ics == "NS2_smooth_interfaces":
-                self.grid.fill_grid(ics.NS2_smooth_interfaces)
         else:
             raise RuntimeError("[FLUID] ICS not valid.")
 
@@ -163,41 +155,34 @@ class Simulation:
         with open(output_filename, 'w') as f:
             # Write header
             f.write(f"# Time: {self.t:.4f}\n")
-            f.write("# x, density, velocity, pressure\n")
+            f.write("# x, y, density, x-velocity, y-velocity, pressure\n")
             
-            for i in range(len(self.grid.x)):
-                x = self.grid.x[i]
-                components = [self.grid.grid[q, i] for q in range(self.c.NUMQ)]
-                f.write(f"{x:.12f}, " + ", ".join(f"{comp:.8f}" for comp in components) + "\n")
+            for i in range(self.grid.Nghost, self.grid.Nx - self.grid.Nghost):
+                for j in range(self.grid.Nghost, self.grid.Ny - self.grid.Nghost):
+                    x = self.grid.x[i]
+                    y = self.grid.y[j]
+                    components = [self.grid.grid[q, i, j] for q in range(self.c.NUMQ)]
+                    f.write(f"{x:.12f}, {y:.12f}, " + ", ".join(f"{comp:.8f}" for comp in components) + "\n")
         
-        if self.c.NUMQ == 3:
-            fig, axs = plt.subplots(3, 1, figsize=(10, 15))
-        elif self.c.NUMQ == 4:
-            fig, axs = plt.subplots(2,2, figsize=(15, 15))
-        else:
-            print("self.c.NUMQ: ", self.c.NUMQ)
-            raise RuntimeError("System not implemented for movie.")
-        
+        fig, axs = plt.subplots(2, 2, figsize=(15, 15))
         axs = axs.ravel()  # Flatten the array to index by i
 
-    
         for i in range(self.c.NUMQ):
-            #axs[i].clear()
-            axs[i].scatter(self.grid.x, self.grid.grid[i], c="black")
-            axs[i].set_ylabel(self.c.variable_names[i])
+            # Exclude ghost cells from the plot
+            plot_data = self.grid.grid[i, self.grid.Nghost:-self.grid.Nghost, self.grid.Nghost:-self.grid.Nghost].T
+            extent = [self.grid.x[self.grid.Nghost], self.grid.x[-self.grid.Nghost-1],
+                      self.grid.y[self.grid.Nghost], self.grid.y[-self.grid.Nghost-1]]
+            
+            im = axs[i].imshow(plot_data, origin='lower', extent=extent)
+            plt.colorbar(im, ax=axs[i])
+            axs[i].set_title(self.c.variable_names[i])
+            axs[i].set_xlabel('x')
+            axs[i].set_ylabel('y')
 
-
-        axs[0].set_title(f"Time: {self.t:.4f}, Timestep: {self.timestepNum}")
-
-        # for ax in axs.flat:
-        #     ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useOffset=False))
-
-        # axs[2].set_ylim((0.99, 1.01))
-        # axs[3].set_ylim((0.89, .91))
-
+        fig.suptitle(f"Time: {self.t:.4f}, Timestep: {self.timestepNum}")
+        plt.tight_layout()
         fig.savefig(output_plotname)
         plt.close()
-
     
 
 

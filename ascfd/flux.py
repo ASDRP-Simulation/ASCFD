@@ -1,9 +1,8 @@
-
-from onedim.euler import Euler
-from onedim.reconstruct import weno5_reconstruction
-from onedim.constants import *
-from onedim.grid import Grid1D
-from onedim.constants import Constants
+from ascfd.euler import Euler
+# from ascfd.reconstruct import weno5_reconstruction
+from ascfd.constants import *
+from ascfd.grid import Grid2D
+from ascfd.constants import Constants
 
 import numpy as np
 import sys
@@ -18,8 +17,8 @@ class Flux:
         self.euler = Euler(self.c)
 
 
-        if self.type == "LF":
-            self.flux_method = self.lax_friedrichs
+        if self.type == "rusanov":
+            self.flux_method = self.rusanov
         else:
             raise RuntimeError(f"Flux method not supported: {self.type}")
 
@@ -28,7 +27,7 @@ class Flux:
         return self.flux_method(a_grid)
 
 
-    def lax_friedrichs(self, a_grid):
+    def rusanov(self, a_grid):
         a_grid.assert_variable_type("prim")
 
         #get density 
@@ -36,35 +35,10 @@ class Flux:
             density = a_grid.grid[self.c.RHOCOMP]
         else:
             raise RuntimeError("Density method needs to be implemented.")
+            
+        a = np.sqrt(self.c.gamma * a_grid.grid[self.c.PCOMP] / density)
 
-                
-        a = np.sqrt(gamma * a_grid.grid[PCOMP] / density)
-
-        max_speed = np.max(np.abs(a_grid.grid[self.c.UCOMP]) + a)
-
-
-
-        #eq 29
-        sum = 0
-        for i in range(self.c.NS):
-            sum += (a_grid.grid[self.c.RHOCOMP + i] / self.c.mW[i])
-        mBar = density / sum
-
-        #eq 4
-        sum = 0
-        Y_is = []
-        for i in range(self.c.NS):
-
-            #Y = rhoY/rho
-            Y_i = a_grid.grid[self.c.RHOCOMP + i]/density
-            Y_is.append(Y_i)
-
-            sum += (1 / (1 - self.c.gammas[i])) * (Y_i / self.c.mW[i])
-
-        G = mBar * sum
-        gammaBar = 1/G + 1
-
-
+        max_speed = np.max(np.abs(a_grid.grid[self.c.UCOMP]) + np.abs(a_grid.grid[self.c.VCOMP]) + a)
 
         #don't reconstruct cell faces just use FD methods
         U = a_grid.grid
@@ -73,30 +47,45 @@ class Flux:
         consU = self.euler.prim_to_cons(U)
 
         # analytical flux
-        f = self.euler.flux(U)
+        fx, fy = self.euler.flux(U)
 
         #pointwise LF Flux
-        numFluxL = np.zeros_like(a_grid.grid)
-        numFluxR = np.zeros_like(a_grid.grid)
+        numFluxX_plus = np.zeros_like(a_grid.grid)
+        numFluxX_minus = np.zeros_like(a_grid.grid)
+        numFluxY_plus = np.zeros_like(a_grid.grid)
+        numFluxY_minus = np.zeros_like(a_grid.grid)
 
         # Computes LF Flux
         # Loop through all the cells except for the outermost ghost cells.
-        for i in range(1, len(a_grid.x) - 1):
+        for i in range(1, a_grid.Nx + 2*a_grid.Nghost - 1):
+            for j in range(1, a_grid.Ny + 2*a_grid.Nghost - 1):
+                # X-direction fluxes
+                sMaxX_plus = max(
+                    np.abs(a_grid.grid[self.c.UCOMP, i, j]) + a[i, j],
+                    np.abs(a_grid.grid[self.c.UCOMP, i+1, j]) + a[i+1, j]
+                )
+                sMaxX_minus = max(
+                    np.abs(a_grid.grid[self.c.UCOMP, i-1, j]) + a[i-1, j],
+                    np.abs(a_grid.grid[self.c.UCOMP, i, j]) + a[i, j]
+                )
 
-            leftWave = np.abs(a_grid.grid[self.c.UCOMP, i]) + np.sqrt(gammaBar[i] * a_grid.grid[self.c.PCOMP,i] / density[i])
-            rightWave = np.abs(a_grid.grid[self.c.UCOMP, i+1]) + np.sqrt(gammaBar[i+1] * a_grid.grid[self.c.PCOMP,i+1] / density[i+1])
-            sMaxR = max(leftWave, rightWave)
+                # Y-direction fluxes
+                sMaxY_plus = max(
+                    np.abs(a_grid.grid[self.c.VCOMP, i, j]) + a[i, j],
+                    np.abs(a_grid.grid[self.c.VCOMP, i, j+1]) + a[i, j+1]
+                )
+                sMaxY_minus = max(
+                    np.abs(a_grid.grid[self.c.VCOMP, i, j-1]) + a[i, j-1],
+                    np.abs(a_grid.grid[self.c.VCOMP, i, j]) + a[i, j]
+                )
 
+                for icomp in range(self.c.NUMQ):
+                    # Compute the Lax-Friedrichs flux for X-direction
+                    numFluxX_plus[icomp, i, j] = 0.5*(fx[icomp, i+1, j] + fx[icomp, i, j]) - 0.5*sMaxX_plus * (consU[icomp, i+1, j] - consU[icomp, i, j])
+                    numFluxX_minus[icomp, i, j] = 0.5*(fx[icomp, i, j] + fx[icomp, i-1, j]) - 0.5*sMaxX_minus * (consU[icomp, i, j] - consU[icomp, i-1, j])
 
-            leftWave = np.abs(a_grid.grid[self.c.UCOMP, i-1]) + np.sqrt(gammaBar[i-1] * a_grid.grid[self.c.PCOMP,i-1] / density[i-1])
-            rightWave = np.abs(a_grid.grid[self.c.UCOMP, i]) + np.sqrt(gammaBar[i] * a_grid.grid[self.c.PCOMP,i] / density[i])
-            sMaxL = max(leftWave, rightWave)
+                    # Compute the Lax-Friedrichs flux for Y-direction
+                    numFluxY_plus[icomp, i, j] = 0.5*(fy[icomp, i, j+1] + fy[icomp, i, j]) - 0.5*sMaxY_plus * (consU[icomp, i, j+1] - consU[icomp, i, j])
+                    numFluxY_minus[icomp, i, j] = 0.5*(fy[icomp, i, j] + fy[icomp, i, j-1]) - 0.5*sMaxY_minus * (consU[icomp, i, j] - consU[icomp, i, j-1])
 
-            for icomp in range(self.c.NUMQ):
-
-                # Compute the Lax-Friedrichs flux                 
-                numFluxR[icomp, i] = 0.5*(f[icomp, i+1] + f[icomp, i]) - 0.5*sMaxR * (consU[icomp,i+1] - consU[icomp, i])
-                numFluxL[icomp, i] = 0.5*(f[icomp, i] + f[icomp,i-1]) - 0.5*sMaxL * (consU[icomp,i] - consU[icomp, i-1])
-
-        return consU, numFluxR, numFluxL
-
+        return consU, numFluxX_plus, numFluxX_minus, numFluxY_plus, numFluxY_minus

@@ -1,24 +1,5 @@
 from ascfd.inputs import Inputs
 
-# primative
-RHOCOMP = 0
-UCOMP = 1
-PCOMP = 2
-
-# conservative
-RHOCOMP = 0
-MUCOMP = 1
-ECOMP = 2
-
-
-NUMQ = 3
-
-variable_names = ["Density", "Velocity", "Pressure"]
-
-
-# Fluid
-gamma = 1.4
-
 
 
 class Constants:
@@ -46,8 +27,10 @@ class Constants:
 
             self.system = "euler2D"
 
-            self.gammas = inputs.gammas #gammas
-            self.mW = inputs.mW #molecular weight
+            self.gamma = inputs.gammas[0] #gammas
+
+
+            self.variable_names = ["Density", "X-Velocity", "Y-Velocity", "Pressure"]
 
             self.NS = 1 
 
