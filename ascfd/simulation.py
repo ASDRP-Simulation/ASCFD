@@ -42,12 +42,10 @@ class Simulation:
             self.output()
 
     def run(self):
-
         while (self.t < self.inp.t_finish) and self.timestepNum < self.inp.nt:
-            print("Timestep: ", self.timestepNum, "  Current time: ", self.t)
+            print(f"Timestep: {self.timestepNum}, Current time: {self.t}")
 
             self.bcs.apply_bcs()
-
 
             self.grid.assert_variable_type("prim")
             
@@ -58,17 +56,15 @@ class Simulation:
             else:
                 raise RuntimeError("Density method needs to be implemented.")
 
-
             a = np.sqrt(self.c.gamma * self.grid.grid[self.c.PCOMP] / density)
             max_speed = np.max(np.abs(self.grid.grid[self.c.UCOMP]) + np.abs(self.grid.grid[self.c.VCOMP]) + a)
             dt = min(self.inp.cfl * min(self.grid.dx, self.grid.dy) / max_speed, self.inp.t_finish - self.t)
             
-            U_new = np.zeros_like(self.grid.grid) 
-            
-            
             if  self.inp.timeStepper == "RK1":
-                #returns numerical flux and conservative varaibles at interface
+                #returns numerical flux and conservative variables at interface
                 consU, numFluxX_plus, numFluxX_minus, numFluxY_plus, numFluxY_minus = self.flux.getFlux(self.grid)
+
+                U_new = np.copy(consU)  # Start with the current conservative variables
 
                 for i in range(self.grid.Nghost, self.grid.Nx + self.grid.Nghost):
                     for j in range(self.grid.Nghost, self.grid.Ny + self.grid.Nghost):
@@ -77,15 +73,27 @@ class Simulation:
                                 (dt / self.grid.dx) * (numFluxX_plus[icomp, i, j] - numFluxX_minus[icomp, i, j]) +
                                 (dt / self.grid.dy) * (numFluxY_plus[icomp, i, j] - numFluxY_minus[icomp, i, j])
                             )
+
+                            
             else:
                 raise RuntimeError("Timestepping method not supported.")
 
+            #self.grid.plot()
+            # Update the grid with the new conservative variables
+            #self.grid.set(U_new)
+            self.grid.grid = self.euler.cons_to_prim(U_new)
+            self.grid.variables = "prim"
+
+            # Convert back to primitive variables
+            #self.grid.transform(self.euler.cons_to_prim, "prim")
 
 
-            self.grid.set(U_new)
-            self.grid.transform(self.euler.cons_to_prim, "prim")
-            
             self.bcs.apply_bcs()
+
+            # assert np.all(np.isfinite(self.grid.grid)), f"Invalid values in grid at timestep {self.timestepNum}"
+            # assert np.all(self.grid.grid[self.c.PCOMP] > 0), f"Negative pressure detected at timestep {self.timestepNum}"
+
+
 
 
             self.timestepNum += 1
@@ -98,6 +106,7 @@ class Simulation:
 
 
             # DEBUG
+            # self.grid.plot()
             self.grid.check_grid(self.c)
 
         if self.inp.make_movie:
@@ -136,6 +145,8 @@ class Simulation:
                 self.grid.fill_grid(ics.kelvin_helmholtz_2d)
             elif self.inp.ics == "double_mach_reflection":
                 self.grid.fill_grid(ics.double_mach_reflection_2d)
+            elif self.inp.ics == "riemann_problem":
+                self.grid.fill_grid(ics.riemann_2d)
             else:
                 raise RuntimeError("[FLUID] ICS not valid.")
             

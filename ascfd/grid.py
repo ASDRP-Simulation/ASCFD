@@ -117,7 +117,7 @@ class Grid2D:
         pass
 
     def set_grid(self, U_new):
-        pass
+        self.grid = U_new
 
     def internal_bounds(self):
         pass

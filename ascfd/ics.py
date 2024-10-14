@@ -50,3 +50,47 @@ def double_mach_reflection_2d(a_x, a_y, a_var):
         return np.where(mask, 116.5, 1.0)
     else:
         raise ValueError(f"Unexpected variable: {a_var}")
+
+def riemann_2d(a_x, a_y, a_var):
+    """
+    2D Riemann problem for 2D Euler equations.
+    """
+    # Define the four states
+    rho = np.select([
+        (a_x >= 0.5) & (a_y >= 0.5),
+        (a_x < 0.5) & (a_y >= 0.5),
+        (a_x < 0.5) & (a_y < 0.5),
+        (a_x >= 0.5) & (a_y < 0.5)
+    ], [1.5, 0.5323, 0.138, 0.5323])
+    
+    u = np.select([
+        (a_x >= 0.5) & (a_y >= 0.5),
+        (a_x < 0.5) & (a_y >= 0.5),
+        (a_x < 0.5) & (a_y < 0.5),
+        (a_x >= 0.5) & (a_y < 0.5)
+    ], [0.0, 1.206, 1.206, 0.0])
+    
+    v = np.select([
+        (a_x >= 0.5) & (a_y >= 0.5),
+        (a_x < 0.5) & (a_y >= 0.5),
+        (a_x < 0.5) & (a_y < 0.5),
+        (a_x >= 0.5) & (a_y < 0.5)
+    ], [0.0, 0.0, 1.206, 1.206])
+    
+    p = np.select([
+        (a_x >= 0.5) & (a_y >= 0.5),
+        (a_x < 0.5) & (a_y >= 0.5),
+        (a_x < 0.5) & (a_y < 0.5),
+        (a_x >= 0.5) & (a_y < 0.5)
+    ], [1.5, 0.3, 0.029, 0.3])
+
+    if a_var == 0: #RHOCOMP
+        return rho
+    elif a_var == 1: #UCOMP
+        return u
+    elif a_var == 2: #VCOMP
+        return v
+    elif a_var == 3: #PCOMP
+        return p
+    else:
+        raise ValueError(f"Unexpected variable: {a_var}")

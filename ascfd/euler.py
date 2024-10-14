@@ -59,7 +59,7 @@ class Euler:
             v = a_prim[self.c.VCOMP]
             p = a_prim[self.c.PCOMP]
             
-            # Compute total energy per unit volume
+            # Compute total energy 
             e = p / ((self.c.gamma - 1) * rho)
             E = rho * (e + 0.5 * (u**2 + v**2))
             

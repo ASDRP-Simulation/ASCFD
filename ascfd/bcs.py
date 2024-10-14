@@ -51,34 +51,34 @@ class BoundaryConditions:
         for var in range(grid.num_vars):
             if dim == 0:  # x-direction
                 for i in range(grid.Nghost):
-                    for j in range(grid.Ny):
-                        grid.grid[var, i, j] = 0
+                    for j in range(grid.Nghost, grid.Ny + grid.Nghost):
+                        grid.grid[var, i, j] = grid.grid[var, grid.Nghost, j]
             else:  # y-direction
-                for i in range(grid.Nx):
+                for i in range(grid.Nghost, grid.Nx + grid.Nghost):
                     for j in range(grid.Nghost):
-                        grid.grid[var, i, j] = 0
+                        grid.grid[var, i, j] = grid.grid[var, i, grid.Nghost]
 
     @staticmethod
     def dirichlet_hi(grid: Grid2D, dim: int) -> None:
         for var in range(grid.num_vars):
             if dim == 0:  # x-direction
-                for i in range(grid.Nx - grid.Nghost, grid.Nx):
-                    for j in range(grid.Ny):
-                        grid.grid[var, i, j] = 0
+                for i in range(grid.Nx + grid.Nghost, grid.Nx + 2*grid.Nghost):
+                    for j in range(grid.Nghost, grid.Ny + grid.Nghost):
+                        grid.grid[var, i, j] = grid.grid[var, grid.Nx + grid.Nghost - 1, j]
             else:  # y-direction
-                for i in range(grid.Nx):
-                    for j in range(grid.Ny - grid.Nghost, grid.Ny):
-                        grid.grid[var, i, j] = 0
+                for i in range(grid.Nghost, grid.Nx + grid.Nghost):
+                    for j in range(grid.Ny + grid.Nghost, grid.Ny + 2*grid.Nghost):
+                        grid.grid[var, i, j] = grid.grid[var, i, grid.Ny + grid.Nghost - 1]
 
     @staticmethod
     def neumann_lo(grid: Grid2D, dim: int) -> None:
         for var in range(grid.num_vars):
             if dim == 0:  # x-direction
                 for i in range(grid.Nghost):
-                    for j in range(grid.Ny):
+                    for j in range(grid.Nghost, grid.Ny + grid.Nghost):
                         grid.grid[var, i, j] = grid.grid[var, grid.Nghost, j]
             else:  # y-direction
-                for i in range(grid.Nx):
+                for i in range(grid.Nghost, grid.Nx + grid.Nghost):
                     for j in range(grid.Nghost):
                         grid.grid[var, i, j] = grid.grid[var, i, grid.Nghost]
 
@@ -86,34 +86,34 @@ class BoundaryConditions:
     def neumann_hi(grid: Grid2D, dim: int) -> None:
         for var in range(grid.num_vars):
             if dim == 0:  # x-direction
-                for i in range(grid.Nx - grid.Nghost, grid.Nx):
-                    for j in range(grid.Ny):
-                        grid.grid[var, i, j] = grid.grid[var, grid.Nx - grid.Nghost - 1, j]
+                for i in range(grid.Nx + grid.Nghost, grid.Nx + 2*grid.Nghost):
+                    for j in range(grid.Nghost, grid.Ny + grid.Nghost):
+                        grid.grid[var, i, j] = grid.grid[var, grid.Nx + grid.Nghost - 1, j]
             else:  # y-direction
-                for i in range(grid.Nx):
-                    for j in range(grid.Ny - grid.Nghost, grid.Ny):
-                        grid.grid[var, i, j] = grid.grid[var, i, grid.Ny - grid.Nghost - 1]
+                for i in range(grid.Nghost, grid.Nx + grid.Nghost):
+                    for j in range(grid.Ny + grid.Nghost, grid.Ny + 2*grid.Nghost):
+                        grid.grid[var, i, j] = grid.grid[var, i, grid.Ny + grid.Nghost - 1]
 
     @staticmethod
     def periodic_lo(grid: Grid2D, dim: int) -> None:
         for var in range(grid.num_vars):
             if dim == 0:  # x-direction
                 for i in range(grid.Nghost):
-                    for j in range(grid.Ny):
-                        grid.grid[var, i, j] = grid.grid[var, grid.Nx - 2*grid.Nghost + i, j]
+                    for j in range(grid.Nghost, grid.Ny + grid.Nghost):
+                        grid.grid[var, i, j] = grid.grid[var, grid.Nx + i, j]
             else:  # y-direction
-                for i in range(grid.Nx):
+                for i in range(grid.Nghost, grid.Nx + grid.Nghost):
                     for j in range(grid.Nghost):
-                        grid.grid[var, i, j] = grid.grid[var, i, grid.Ny - 2*grid.Nghost + j]
+                        grid.grid[var, i, j] = grid.grid[var, i, grid.Ny + j]
 
     @staticmethod
     def periodic_hi(grid: Grid2D, dim: int) -> None:
         for var in range(grid.num_vars):
             if dim == 0:  # x-direction
-                for i in range(grid.Nx - grid.Nghost, grid.Nx):
-                    for j in range(grid.Ny):
-                        grid.grid[var, i, j] = grid.grid[var, i - (grid.Nx - 2*grid.Nghost), j]
+                for i in range(grid.Nx + grid.Nghost, grid.Nx + 2*grid.Nghost):
+                    for j in range(grid.Nghost, grid.Ny + grid.Nghost):
+                        grid.grid[var, i, j] = grid.grid[var, i - grid.Nx, j]
             else:  # y-direction
-                for i in range(grid.Nx):
-                    for j in range(grid.Ny - grid.Nghost, grid.Ny):
-                        grid.grid[var, i, j] = grid.grid[var, i, j - (grid.Ny - 2*grid.Nghost)]
+                for i in range(grid.Nghost, grid.Nx + grid.Nghost):
+                    for j in range(grid.Ny + grid.Nghost, grid.Ny + 2*grid.Nghost):
+                        grid.grid[var, i, j] = grid.grid[var, i, j - grid.Ny]
